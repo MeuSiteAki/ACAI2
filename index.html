@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Painel de Pedidos — Açaiteria Tropical</title>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+
+  <style>
+    :root{
+      --green: #2ecc71;
+      --green-dark: #27ae60;
+      --bg1: #f8fdf8;
+      --bg2: #eafaf1;
+      --text: #2d3142;
+      --muted: #6b7280;
+      --card: #ffffff;
+      --shadow: 0 6px 16px rgba(0,0,0,0.08);
+      --radius: 14px;
+    }
+    body { font-family: "Inter", sans-serif; background: linear-gradient(180deg, var(--bg1), var(--bg2)); color: var(--text); margin: 0; }
+    header.topbar { position: sticky; top: 0; z-index: 50; background: linear-gradient(90deg, var(--green-dark), var(--green)); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .topbar h1 { margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; font-weight: 800; }
+    .actions { display: flex; gap: 10px; }
+    .actions button { border: none; border-radius: 10px; padding: 10px 14px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--shadow); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .actions button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.15) }
+    #apagarTudo { background: #e74c3c; color: #fff }
+    #gerarPDF   { background: #3498db; color: #fff }
+    main { padding: 20px }
+    .pedidos { display: grid; gap: 16px; max-width: 980px; margin: 0 auto; }
+    .pedido { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; border-left: 6px solid var(--green); animation: fadeIn 0.5s ease both; }
+    .pedido-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .pedido-header h3 { margin: 0; font-size: 20px; color: var(--green-dark); display: flex; align-items: center; gap: 8px; }
+    .pedido-header .valor { background: #ebfff3; color: #0f5132; border: 2px solid #d1f7df; border-radius: 999px; padding: 6px 12px; font-weight: 800; }
+    .pedido p { margin: 4px 0; display: flex; align-items: center; gap: 6px; }
+    .pedido details { margin-top: 10px; background: #f7faf7; border: 1px solid #e4eee4; border-radius: 10px; padding: 10px; }
+    .pedido details summary { cursor: pointer; font-weight: 800; color: #374151; display: flex; align-items: center; gap: 8px; }
+    .pedido hr { border: none; border-top: 1px dashed #e5e7eb; margin: 8px 0 }
+    .pedido small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <h1><i class="fas fa-glass-whiskey"></i> Painel de Pedidos</h1>
+    <div class="actions">
+      <button id="apagarTudo"><i class="fas fa-trash"></i> Apagar todos</button>
+      <button id="gerarPDF"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="pedidos" class="pedidos">Carregando pedidos...</div>
+  </main>
+
+  <!-- Firebase + Lógica -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { 
+      getFirestore, collection, onSnapshot, getDocs, deleteDoc, doc,
+      query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "SUA_API_KEY",
+      authDomain: "acai123-4ad1a.firebaseapp.com",
+      projectId: "acai123-4ad1a",
+      storageBucket: "acai123-4ad1a.firebasestorage.app",
+      messagingSenderId: "423472519123",
+      appId: "1:423472519123:web:b8795b57e347f473d7c126",
+      measurementId: "G-K86FBM1JE5"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Ordena por data desc para exibir mais recentes primeiro
+    const pedidosRef = query(collection(db, "pedidos"), orderBy("data", "desc"));
+    const lista = document.getElementById("pedidos");
+
+    function tocarAlerta() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      function beep(time) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "square";
+        osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(1, ctx.currentTime + time);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + time + 0.3);
+        osc.start(ctx.currentTime + time);
+        osc.stop(ctx.currentTime + time + 0.3);
+      }
+      beep(0); beep(0.5); beep(1.0);
+    }
+
+    // Render card de pedido
+    function renderPedidoCard(pedido) {
+      const div = document.createElement("div");
+      div.className = "pedido";
+      const totalBRL = Number(pedido.total || 0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+
+      const itensHTML = Array.isArray(pedido.itens) ? pedido.itens.map((i,idx)=>`
+        <div class="item">
+          <strong>#${idx+1}</strong> — ${i.tipo || 'Item'} ${i.size?i.size+'ml':''} (R$ ${Number(i.price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})})
+          ${i.fruits?.length ? `<br>🍓 Frutas: ${i.fruits.join(", ")}` : ""}
+          ${i.ingredients?.length ? `<br>🥜 Ingredientes: ${i.ingredients.join(", ")}` : ""}
+          ${i.topping ? `<br>🍫 Cobertura: ${i.topping}` : ""}
+          ${i.extras?.length ? `<br>⭐ Adicionais: ${i.extras.join(", ")}` : ""}
+          ${i.drinks?.length ? `<br>🥤 Bebidas: ${i.drinks.map(d => `${d.label} (${Number(d.price).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})})`).join(", ")}` : ""}
+          ${i.notes ? `<br>📝 Obs: ${i.notes}` : ""}
+        </div>
+        <hr>
+      `).join("") : "<div class='item'>Sem itens</div>";
+
+      const taxa = pedido.taxaEntrega ? ` (+ taxa R$ ${Number(pedido.taxaEntrega).toLocaleString('pt-BR',{minimumFractionDigits:2})})` : "";
+
+      div.innerHTML = `
+        <div class="pedido-header">
+          <h3><i class="fas fa-user"></i> ${pedido.cliente || "-"}</h3>
+          <span class="valor">R$ ${totalBRL}</span>
+        </div>
+
+        <p><i class="fas fa-phone"></i> ${pedido.telefone || "-"}</p>
+        <p><i class="fas fa-map-marker-alt"></i> ${pedido.endereco || "-"}, ${pedido.bairro || "-"}</p>
+        <p><i class="fas fa-credit-card"></i> ${pedido.pagamento || "-"}</p>
+
+        <details>
+          <summary><i class="fas fa-box"></i> Itens</summary>
+          ${itensHTML}
+        </details>
+
+        ${pedido.observacoes ? `<p><strong>Obs. gerais:</strong> ${pedido.observacoes}</p>` : ""}
+
+        <small><i class="fas fa-clock"></i> Recebido em: ${pedido.data ? new Date(pedido.data).toLocaleString("pt-BR") : "-"}</small>
+        ${taxa ? `<small><i class="fas fa-truck"></i> Taxa: ${taxa}</small>` : ""}
+      `;
+      return div;
+    }
+
+    // Atualização em tempo real
+    let firstLoadDone = false;
+    onSnapshot(pedidosRef, (snapshot) => {
+      lista.innerHTML = "";
+      if (snapshot.empty) {
+        lista.innerHTML = "<p>Nenhum pedido.</p>";
+        return;
+      }
+      snapshot.docs.forEach(docSnap => {
+        const pedido = docSnap.data();
+        const card = renderPedidoCard(pedido);
+        lista.appendChild(card);
+      });
+      // Toca alerta somente após o primeiro load, quando houver mudança
+      if (firstLoadDone) tocarAlerta();
+      firstLoadDone = true;
+    });
+
+    // Apagar todos os pedidos
+    document.getElementById("apagarTudo").addEventListener("click", async () => {
+      const confirm = await Swal.fire({
+        title: 'Apagar todos os pedidos?',
+        text: 'Essa ação não pode ser desfeita.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e74c3c',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Sim, apagar',
+        cancelButtonText: 'Cancelar'
+      });
+      if (!confirm.isConfirmed) return;
+
+      const snap = await getDocs(collection(db, "pedidos"));
+      let erros = 0;
+      for (const d of snap.docs) {
+        try { await deleteDoc(doc(db, "pedidos", d.id)); }
+        catch { erros++; }
+      }
+
+      if (erros === 0) {
+        await Swal.fire({ icon: 'success', title: 'Pronto!', text: 'Todos os pedidos foram apagados.' });
+      } else {
+        await Swal.fire({ icon: 'error', title: 'Algo falhou', text: `Não foi possível apagar ${erros} registro(s).` });
+      }
+    });
+
+    // Gerar PDF (tabela organizada)
+    document.getElementById("gerarPDF").addEventListener("click", async () => {
+      const snap = await getDocs(collection(db, "pedidos"));
+      if (snap.empty) {
+        await Swal.fire({ icon: 'info', title: 'Sem pedidos', text: 'Nenhum pedido para gerar balanço.' });
+        return;
+      }
+
+      const pedidos = snap.docs.map(d => d.data());
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+
+      // Cabeçalho
+      pdf.setFontSize(16);
+      pdf.text('Balanço de Pedidos — Açaiteria Tropical', 10, 15);
+      pdf.setFontSize(11);
+      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 10, 22);
+
+      // Tabela
+      const startY = 30;
+      let y = startY;
+      const colX = { idx: 10, cliente: 20, telefone: 70, bairro: 100, itens: 130, total: 180 };
+
+      pdf.setFontSize(10);
+      pdf.setFillColor(235, 245, 238);
+      pdf.rect(8, y - 5, 194, 8, 'F');
+      pdf.text('#', colX.idx, y);
+      pdf.text('Cliente', colX.cliente, y);
+      pdf.text('Telefone', colX.telefone, y);
+      pdf.text('Bairro', colX.bairro, y);
+      pdf.text('Itens', colX.itens, y);
+      pdf.text('Total (R$)', colX.total, y);
+
+      y += 6;
+      let totalGeral = 0;
+
+      const wrapText = (text, maxChars = 34) => {
+        if (!text) return ['-'];
+        const lines = [];
+        let line = '';
+        text.split(', ').forEach(word => {
+          if ((line + word).length > maxChars) {
+            lines.push(line.trim());
+            line = word + ', ';
+          } else {
+            line += word + ', ';
+          }
+        });
+        if (line.trim()) lines.push(line.replace(/, $/, ''));
+        return lines;
+      };
+
+      pedidos.forEach((p, idx) => {
+        const itensResumo = Array.isArray(p.itens) 
+          ? p.itens.map((i, iidx) => {
+              const extras = i.extras?.length ? `+E:${i.extras.join('/')}` : '';
+              const drinks = i.drinks?.length ? `+B:${i.drinks.map(d=>d.label).join('/')}` : '';
+              const size = i.size ? `${i.size}ml` : i.tipo === 'Bebidas' ? 'bebidas' : '';
+              return `#${iidx+1}:${size}${extras?(' '+extras):''}${drinks?(' '+drinks):''}`;
+            }).join(', ')
+          : '-';
+        const itensLines = wrapText(itensResumo, 34);
+        const rowHeight = 5 + (itensLines.length - 1) * 4;
+
+        pdf.setDrawColor(230, 230, 230);
+        pdf.line(8, y - 3, 202, y - 3);
+
+        pdf.text(String(idx + 1), colX.idx, y);
+        pdf.text(p.cliente || '-', colX.cliente, y);
+        pdf.text(p.telefone || '-', colX.telefone, y);
+        pdf.text(p.bairro || '-', colX.bairro, y);
+        itensLines.forEach((ln, i) => { pdf.text(ln, colX.itens, y + i * 4); });
+
+        const total = Number(p.total || 0);
+        totalGeral += total;
+        pdf.text(total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), colX.total, y);
+
+        y += rowHeight;
+        if (y > 270) { pdf.addPage(); y = 20; }
+      });
+
+      if (y > 260) { pdf.addPage(); y = 20; }
+      pdf.setFontSize(12);
+      pdf.text('==============================', 10, y + 6);
+      pdf.text(`TOTAL GERAL: R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 10, y + 12);
+
+      pdf.setFontSize(9);
+      pdf.text('Açaiteria Tropical — Painel de Pedidos', 10, 290);
+
+      pdf.save('balanco-pedidos.pdf');
+    });
+  </script>
+</body>
+</html>
