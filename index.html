@@ -14,8 +14,9 @@
 
   <style>
     :root{
-      --green: #2ecc71;
+      --green: #8507ce;
       --green-dark: #27ae60;
+      --blue: #3498db;
       --bg1: #f8fdf8;
       --bg2: #eafaf1;
       --text: #2d3142;
@@ -23,6 +24,8 @@
       --card: #ffffff;
       --shadow: 0 6px 16px rgba(0,0,0,0.08);
       --radius: 14px;
+      --orange: #e67e22;
+      --red: #e74c3c;
     }
     body { font-family: "Inter", sans-serif; background: linear-gradient(180deg, var(--bg1), var(--bg2)); color: var(--text); margin: 0; }
     header.topbar { position: sticky; top: 0; z-index: 50; background: linear-gradient(90deg, var(--green-dark), var(--green)); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
@@ -30,11 +33,25 @@
     .actions { display: flex; gap: 10px; }
     .actions button { border: none; border-radius: 10px; padding: 10px 14px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: var(--shadow); transition: transform 0.2s ease, box-shadow 0.2s ease; }
     .actions button:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0,0,0,0.15) }
-    #apagarTudo { background: #e74c3c; color: #fff }
-    #gerarPDF   { background: #3498db; color: #fff }
+    #toggleSom { background: var(--green); color: #fff }
+    #toggleSom.active { background: var(--orange); }
+    #apagarTudo { background: var(--red); color: #fff }
+    #gerarPDF   { background: var(--blue); color: #fff }
+
     main { padding: 20px }
+    .dashboard { max-width: 980px; margin: 0 auto 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .dash-card { flex: 1; min-width: 220px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; text-align: center; }
+    .dash-card h3 { margin: 0; font-size: 15px; color: var(--muted); font-weight: 700; }
+    .dash-card p { margin: 6px 0 0; font-size: 22px; font-weight: 800; color: var(--green-dark); }
+
     .pedidos { display: grid; gap: 16px; max-width: 980px; margin: 0 auto; }
-    .pedido { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; border-left: 6px solid var(--green); animation: fadeIn 0.5s ease both; }
+    .pedido-wrapper { display: flex; align-items: flex-start; gap: 12px; }
+    .pedido { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; flex: 1; border-left: 6px solid var(--green); }
+    .pedido.blue { border-left-color: var(--blue); }
+
+    .pedido-ok { font-size: 48px; color: var(--green-dark); flex-shrink: 0; display: none; align-self: center; }
+    .pedido-ok.active { display: block; }
+
     .pedido-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .pedido-header h3 { margin: 0; font-size: 20px; color: var(--green-dark); display: flex; align-items: center; gap: 8px; }
     .pedido-header .valor { background: #ebfff3; color: #0f5132; border: 2px solid #d1f7df; border-radius: 999px; padding: 6px 12px; font-weight: 800; }
@@ -43,30 +60,36 @@
     .pedido details summary { cursor: pointer; font-weight: 800; color: #374151; display: flex; align-items: center; gap: 8px; }
     .pedido hr { border: none; border-top: 1px dashed #e5e7eb; margin: 8px 0 }
     .pedido small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px) } to { opacity: 1; transform: translateY(0) } }
+
+    .pedido .actions-row { margin-top: 12px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .pedido .wa-btn { background: #25d366; color: #fff; padding: 6px 12px; border-radius: 8px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+    .pedido .wa-btn.secondary { background: #128C7E; }
+    .pedido .wa-btn:hover { filter: brightness(0.95); }
   </style>
 </head>
 <body>
 
   <header class="topbar">
-    <h1><i class="fas fa-glass-whiskey"></i> Painel de Pedidos</h1>
+    <h1><img style="width: 150px; border-radius: 10px;" src="acaizap.jpg" alt=""> Painel de Pedidos</h1>
     <div class="actions">
+      <button id="toggleSom"><i class="fas fa-volume-up"></i> Ativar som</button>
       <button id="apagarTudo"><i class="fas fa-trash"></i> Apagar todos</button>
       <button id="gerarPDF"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
     </div>
   </header>
 
   <main>
+    <div class="dashboard">
+      <div class="dash-card"><h3>Pedidos hoje</h3><p id="statHoje">0</p></div>
+      <div class="dash-card"><h3>Total do dia</h3><p id="statTotal">R$ 0,00</p></div>
+    </div>
+
     <div id="pedidos" class="pedidos">Carregando pedidos...</div>
   </main>
 
-  <!-- Firebase + Lógica -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { 
-      getFirestore, collection, onSnapshot, getDocs, deleteDoc, doc,
-      query, orderBy
-    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, getDocs, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "SUA_API_KEY",
@@ -81,36 +104,79 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Ordena por data desc para exibir mais recentes primeiro
     const pedidosRef = query(collection(db, "pedidos"), orderBy("data", "desc"));
     const lista = document.getElementById("pedidos");
 
-    function tocarAlerta() {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      function beep(time) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "square";
-        osc.frequency.value = 1200;
-        gain.gain.setValueAtTime(1, ctx.currentTime + time);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + time + 0.3);
-        osc.start(ctx.currentTime + time);
-        osc.stop(ctx.currentTime + time + 0.3);
-      }
+    // Utils
+    const formatBRL = (n) => Number(n || 0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    const onlyDigits = (s) => String(s||'').replace(/\D+/g,'');
+    const waLink = (tel, msg) => `https://wa.me/55${onlyDigits(tel)}?text=${encodeURIComponent(msg)}`;
+
+    // Persistência do OK (saiu para entrega)
+    let okEntregas = {};
+    try { okEntregas = JSON.parse(localStorage.getItem("okEntregas") || "{}"); } catch { okEntregas = {}; }
+    const setOkEntrega = (id, val) => {
+      okEntregas[id] = !!val;
+      localStorage.setItem("okEntregas", JSON.stringify(okEntregas));
+    };
+
+    // Som (toggle)
+    let ctx = null;
+    let soundEnabled = false;
+    async function ensureAudio() {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") await ctx.resume();
+    }
+    async function bip() {
+      if (!soundEnabled) return;
+      await ensureAudio();
+      const beep = (t) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = "square"; osc.frequency.value = 1200;
+        gain.gain.setValueAtTime(1, ctx.currentTime + t);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+        osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.3);
+      };
       beep(0); beep(0.5); beep(1.0);
     }
+    const btnSom = document.getElementById("toggleSom");
+    btnSom.addEventListener("click", async () => {
+      if (!soundEnabled) {
+        await ensureAudio();
+        soundEnabled = true;
+        btnSom.classList.add("active");
+        btnSom.innerHTML = '<i class="fas fa-volume-mute"></i> Desativar som';
+        Swal.fire("Som ativado!", "Novos pedidos vão bipar.", "success");
+      } else {
+        soundEnabled = false;
+        btnSom.classList.remove("active");
+        btnSom.innerHTML = '<i class="fas fa-volume-up"></i> Ativar som';
+        Swal.fire("Som desativado!", "Os pedidos não vão bipar.", "info");
+      }
+    });
 
-    // Render card de pedido
-    function renderPedidoCard(pedido) {
-      const div = document.createElement("div");
-      div.className = "pedido";
-      const totalBRL = Number(pedido.total || 0).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    // Render do card + ícone externo persistente
+    function renderPedidoWrapper(pedido, indexFromTop) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "pedido-wrapper";
+
+      const card = document.createElement("div");
+      card.className = indexFromTop >= 1 ? "pedido blue" : "pedido";
+
+      const okIcon = document.createElement("div");
+      okIcon.className = "pedido-ok";
+      okIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
+      if (okEntregas[pedido.id]) okIcon.classList.add("active");
+
+      const totalBRL = formatBRL(pedido.total);
+      const taxa = pedido.taxaEntrega ? ` (+ taxa R$ ${formatBRL(pedido.taxaEntrega)})` : "";
+      const dt = pedido.data ? new Date(pedido.data).toLocaleString("pt-BR") : "-";
 
       const itensHTML = Array.isArray(pedido.itens) ? pedido.itens.map((i,idx)=>`
         <div class="item">
-          <strong>#${idx+1}</strong> — ${i.tipo || 'Item'} ${i.size?i.size+'ml':''} (R$ ${Number(i.price||0).toLocaleString('pt-BR',{minimumFractionDigits:2})})
+          <strong>#${idx+1}</strong> — ${i.tipo || 'Item'} ${i.size?i.size+'ml':''}
+          (R$ ${formatBRL(i.price)})
           ${i.fruits?.length ? `<br>🍓 Frutas: ${i.fruits.join(", ")}` : ""}
           ${i.ingredients?.length ? `<br>🥜 Ingredientes: ${i.ingredients.join(", ")}` : ""}
           ${i.topping ? `<br>🍫 Cobertura: ${i.topping}` : ""}
@@ -121,16 +187,17 @@
         <hr>
       `).join("") : "<div class='item'>Sem itens</div>";
 
-      const taxa = pedido.taxaEntrega ? ` (+ taxa R$ ${Number(pedido.taxaEntrega).toLocaleString('pt-BR',{minimumFractionDigits:2})})` : "";
+      const msgConfirm = `Olá ${pedido.cliente||''}! Confirmando seu pedido de R$ ${totalBRL}.`;
+      const msgSaiu = `Seu pedido já saiu para entrega... Obrigado e volte sempre!`;
 
-      div.innerHTML = `
+      card.innerHTML = `
         <div class="pedido-header">
           <h3><i class="fas fa-user"></i> ${pedido.cliente || "-"}</h3>
           <span class="valor">R$ ${totalBRL}</span>
         </div>
 
         <p><i class="fas fa-phone"></i> ${pedido.telefone || "-"}</p>
-        <p><i class="fas fa-map-marker-alt"></i> ${pedido.endereco || "-"}, ${pedido.bairro || "-"}</p>
+        <p><i class="fas fa-map-marker-alt"></i> ${pedido.endereco || "-"}${pedido.bairro ? ', ' + pedido.bairro : ''}</p>
         <p><i class="fas fa-credit-card"></i> ${pedido.pagamento || "-"}</p>
 
         <details>
@@ -140,31 +207,85 @@
 
         ${pedido.observacoes ? `<p><strong>Obs. gerais:</strong> ${pedido.observacoes}</p>` : ""}
 
-        <small><i class="fas fa-clock"></i> Recebido em: ${pedido.data ? new Date(pedido.data).toLocaleString("pt-BR") : "-"}</small>
+        <small><i class="fas fa-clock"></i> Recebido em: ${dt}</small>
         ${taxa ? `<small><i class="fas fa-truck"></i> Taxa: ${taxa}</small>` : ""}
+
+        <div class="actions-row">
+          <a class="wa-btn" target="_blank" rel="noopener noreferrer"
+             href="${waLink(pedido.telefone, msgConfirm)}">
+             <i class="fab fa-whatsapp"></i> Confirmar pedido
+          </a>
+
+          <button class="wa-btn secondary saiu-btn" data-id="${pedido.id}" data-tel="${onlyDigits(pedido.telefone || '')}">
+            <i class="fab fa-whatsapp"></i> Saiu para entrega
+          </button>
+        </div>
       `;
-      return div;
+
+      // Handler do botão "Saiu para entrega"
+      const btnSaiu = card.querySelector(".saiu-btn");
+      btnSaiu.addEventListener("click", () => {
+        const tel = btnSaiu.getAttribute("data-tel");
+        const id = btnSaiu.getAttribute("data-id");
+        const url = `https://wa.me/55${tel}?text=${encodeURIComponent(msgSaiu)}`;
+        window.open(url, "_blank", "noopener,noreferrer");
+
+        okIcon.classList.add("active");
+        setOkEntrega(id, true); // persiste o OK no localStorage
+      });
+
+      wrapper.appendChild(card);
+      wrapper.appendChild(okIcon);
+      return wrapper;
     }
 
-    // Atualização em tempo real
+    // Dashboard (dia: quantidade e total)
+    const elHoje   = document.getElementById("statHoje");
+    const elTotal  = document.getElementById("statTotal");
+    function updateDashboard(pedidos) {
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      let countHoje = 0;
+      let totalHoje = 0;
+      pedidos.forEach(p => {
+        const ts = p.data ? new Date(p.data).getTime() : 0;
+        if (ts >= startOfToday) {
+          countHoje++;
+          totalHoje += Number(p.total || 0);
+        }
+      });
+      elHoje.textContent  = String(countHoje);
+      elTotal.textContent = `R$ ${totalHoje.toLocaleString('pt-BR',{minimumFractionDigits:2})}`;
+    }
+
+    // Tempo real + bip para novos
     let firstLoadDone = false;
+    let knownIds = new Set();
     onSnapshot(pedidosRef, (snapshot) => {
       lista.innerHTML = "";
       if (snapshot.empty) {
         lista.innerHTML = "<p>Nenhum pedido.</p>";
+        updateDashboard([]);
+        knownIds.clear();
         return;
       }
-      snapshot.docs.forEach(docSnap => {
-        const pedido = docSnap.data();
-        const card = renderPedidoCard(pedido);
-        lista.appendChild(card);
+
+      const pedidos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      pedidos.forEach((p, idx) => {
+        const wrapper = renderPedidoWrapper(p, idx);
+        lista.appendChild(wrapper);
       });
-      // Toca alerta somente após o primeiro load, quando houver mudança
-      if (firstLoadDone) tocarAlerta();
+
+      if (firstLoadDone) {
+        const hasNew = pedidos.some(p => !knownIds.has(p.id));
+        if (hasNew) bip();
+      }
+      knownIds = new Set(pedidos.map(p => p.id));
+      updateDashboard(pedidos);
       firstLoadDone = true;
     });
 
-    // Apagar todos os pedidos
+    // Apagar todos os pedidos + limpar ícones OK persistidos
     document.getElementById("apagarTudo").addEventListener("click", async () => {
       const confirm = await Swal.fire({
         title: 'Apagar todos os pedidos?',
@@ -185,6 +306,10 @@
         catch { erros++; }
       }
 
+      // Limpa persistência dos OK
+      localStorage.removeItem("okEntregas");
+      okEntregas = {};
+
       if (erros === 0) {
         await Swal.fire({ icon: 'success', title: 'Pronto!', text: 'Todos os pedidos foram apagados.' });
       } else {
@@ -192,97 +317,68 @@
       }
     });
 
-    // Gerar PDF (tabela organizada)
+    // PDF (resumo simples)
     document.getElementById("gerarPDF").addEventListener("click", async () => {
-      const snap = await getDocs(collection(db, "pedidos"));
+      const snap = await getDocs(query(collection(db, "pedidos"), orderBy("data", "desc")));
       if (snap.empty) {
         await Swal.fire({ icon: 'info', title: 'Sem pedidos', text: 'Nenhum pedido para gerar balanço.' });
         return;
       }
-
       const pedidos = snap.docs.map(d => d.data());
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
 
-      // Cabeçalho
-      pdf.setFontSize(16);
-      pdf.text('Balanço de Pedidos — Açaiteria Tropical', 10, 15);
-      pdf.setFontSize(11);
-      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 10, 22);
-
-      // Tabela
-      const startY = 30;
-      let y = startY;
-      const colX = { idx: 10, cliente: 20, telefone: 70, bairro: 100, itens: 130, total: 180 };
-
-      pdf.setFontSize(10);
-      pdf.setFillColor(235, 245, 238);
-      pdf.rect(8, y - 5, 194, 8, 'F');
-      pdf.text('#', colX.idx, y);
-      pdf.text('Cliente', colX.cliente, y);
-      pdf.text('Telefone', colX.telefone, y);
-      pdf.text('Bairro', colX.bairro, y);
-      pdf.text('Itens', colX.itens, y);
-      pdf.text('Total (R$)', colX.total, y);
-
-      y += 6;
-      let totalGeral = 0;
-
-      const wrapText = (text, maxChars = 34) => {
-        if (!text) return ['-'];
-        const lines = [];
-        let line = '';
-        text.split(', ').forEach(word => {
-          if ((line + word).length > maxChars) {
-            lines.push(line.trim());
-            line = word + ', ';
-          } else {
-            line += word + ', ';
-          }
-        });
-        if (line.trim()) lines.push(line.replace(/, $/, ''));
-        return lines;
+      const drawHeader = (yHeader = 15) => {
+        pdf.setFontSize(16);
+        pdf.text('Balanço de Pedidos — Açaiteria Tropical', 10, yHeader);
+        pdf.setFontSize(11);
+        pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 10, yHeader + 7);
+        const yTableHeader = yHeader + 15;
+        pdf.setFontSize(10);
+        pdf.setFillColor(235, 245, 238);
+        pdf.rect(8, yTableHeader - 5, 194, 8, 'F');
+        pdf.text('#', 10, yTableHeader);
+        pdf.text('Cliente', 20, yTableHeader);
+        pdf.text('Telefone', 70, yTableHeader);
+        pdf.text('Bairro', 100, yTableHeader);
+        pdf.text('Total (R$)', 180, yTableHeader);
+        return yTableHeader + 6;
       };
 
+      let y = drawHeader();
+      let totalGeral = 0;
       pedidos.forEach((p, idx) => {
-        const itensResumo = Array.isArray(p.itens) 
-          ? p.itens.map((i, iidx) => {
-              const extras = i.extras?.length ? `+E:${i.extras.join('/')}` : '';
-              const drinks = i.drinks?.length ? `+B:${i.drinks.map(d=>d.label).join('/')}` : '';
-              const size = i.size ? `${i.size}ml` : i.tipo === 'Bebidas' ? 'bebidas' : '';
-              return `#${iidx+1}:${size}${extras?(' '+extras):''}${drinks?(' '+drinks):''}`;
-            }).join(', ')
-          : '-';
-        const itensLines = wrapText(itensResumo, 34);
-        const rowHeight = 5 + (itensLines.length - 1) * 4;
-
         pdf.setDrawColor(230, 230, 230);
         pdf.line(8, y - 3, 202, y - 3);
-
-        pdf.text(String(idx + 1), colX.idx, y);
-        pdf.text(p.cliente || '-', colX.cliente, y);
-        pdf.text(p.telefone || '-', colX.telefone, y);
-        pdf.text(p.bairro || '-', colX.bairro, y);
-        itensLines.forEach((ln, i) => { pdf.text(ln, colX.itens, y + i * 4); });
-
+        pdf.text(String(idx + 1), 10, y);
+        pdf.text(p.cliente || '-', 20, y);
+        pdf.text(p.telefone || '-', 70, y);
+        pdf.text(p.bairro || '-', 100, y);
         const total = Number(p.total || 0);
         totalGeral += total;
-        pdf.text(total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), colX.total, y);
-
-        y += rowHeight;
-        if (y > 270) { pdf.addPage(); y = 20; }
+        pdf.text(total.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), 180, y);
+        y += 6;
+        if (y > 270) { pdf.addPage(); y = drawHeader(15); }
       });
 
-      if (y > 260) { pdf.addPage(); y = 20; }
+      if (y > 260) { pdf.addPage(); y = drawHeader(15); }
       pdf.setFontSize(12);
-      pdf.text('==============================', 10, y + 6);
-      pdf.text(`TOTAL GERAL: R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 10, y + 12);
-
+      pdf.text(`TOTAL GERAL: R$ ${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 10, y + 10);
       pdf.setFontSize(9);
       pdf.text('Açaiteria Tropical — Painel de Pedidos', 10, 290);
 
       pdf.save('balanco-pedidos.pdf');
     });
+
+    // Bloqueios de segurança
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey && (e.key === 'u' || e.key === 'U')) { e.preventDefault(); }
+    if (e.key === 'F12') { e.preventDefault(); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.ctrlKey && event.shiftKey && event.key === 'I') { event.preventDefault(); }
+  });
+  document.addEventListener('contextmenu', function (event) { event.preventDefault(); });
   </script>
 </body>
 </html>
